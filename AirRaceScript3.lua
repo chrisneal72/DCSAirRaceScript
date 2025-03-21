@@ -486,98 +486,91 @@ function Airrace:UpdatePlayerStatus(player)
 		return
 	end
 
+	if gateNumber > player.CurrentGateNumber + 1 and not player.Finished then
+-- Player passed unexpected gate			
+		if player.CurrentGateNumber == 0 then
+			-- Player is entering the course half-way
+			player.StatusText = "Wrong start gate, go to gate 1 to start"
+			env.info(string.format("Player %s entered the course half-way", player.Name))
+			return
+		elseif gateNumber > player.CurrentGateNumber + 1 then
+			-- Player has missed one or more gates
+			missedGates = gateNumber - (player.CurrentGateNumber + 1)
+			if missedGates == 1 then
+				warnPlayer(string.format("Missed gate %d", player.CurrentGateNumber + 1), player)
+				env.info(string.format("Player %s missed gate %d", player.Name, player.CurrentGateNumber + 1))
+			else
+				warnPlayer(string.format("Missed gates %d to %d", player.CurrentGateNumber + 1, gateNumber - 1), player)
+				env.info(string.format("Player %s missed gates %d to %d", player.Name, player.CurrentGateNumber + 1, gateNumber - 1))
+			end
+			player.Penalty = player.Penalty + (5 * missedGates)
+			player.CurrentGateNumber = gateNumber - 1
+		elseif gateNumber < player.CurrentGateNumber + 1 then
+			-- Player is going the wrong way
+			env.info(string.format("Player %s missed gate %d and is going the wrong way", player.Name, player.CurrentGateNumber + 1))
+			env.info(string.format("gateNumber: %s, player.currentGateNumber: %s", gateNumber, player.CurrentGateNumber))
+			-- player.StatusText = string.format("Wrong way! Last known gate: %d", player.CurrentGateNumber)
+			return
+		end
+	end
+	
+	player.CurrentGateNumber = gateNumber
+
+	local gateAltitudeOk = self:CheckGateAltitudeForPlayer(player)
+	if gateAltitudeOk == false then
+		trigger.action.outSoundForUnit(player.UnitID, 'penalty.ogg')
+		player.Penalty = player.Penalty + 2
+		-- logMessage(string.format("PENALTY: + 2 seconds "))
+	end
+
+	local bonusGateAltitudeOk = self:CheckBonusAltitudeForPlayer(player)
+	for i = 1, #self.BonusGates do
+		if self.BonusGates[i] == gateNumber then
+			if bonusGateAltitudeOk == true then
+				player.Bonus = player.Bonus + 5
+				warnPlayer(string.format("Low Alt Bonus -5 Sec - %s", player.Name), player)
+			end
+		end
+	end
+
+	local gateRollOk = self:CheckGateRollForPlayer(player)
+	for i = 1 , #self.HorizontalGates do
+		if self.HorizontalGates[i] == gateNumber then
+			local gateRollOk = self:CheckGateRollForPlayer(player)
+			if gateRollOk == false then
+				trigger.action.outSoundForUnit(player.UnitID, 'penalty.ogg')
+				player.Penalty = player.Penalty + 2
+				-- logMessage(string.format("PENALTY: + 2 seconds "))
+			end
+			break
+		end
+	end
+
 	if gateNumber == 1 then
-		local gateAltitudeOk = self:CheckGateAltitudeForPlayer(player)
-		local gateSpeedOk = self:CheckGateSpeedForPlayer(player)
-		local gateRollOk = self:CheckGateRollForPlayer(player)
--- Player is passing gate 1, start timer
-		-- player.Started = false -- Passing gate 1 always resets the timer
-		player.Penalty = 0
-		player.Bonus = 0
-		trigger.action.outSoundForUnit(player.UnitID, 'pik.ogg')
-		player:StartTimer()
-		player.StatusText = "Started"
-		player.CurrentGateNumber = gateNumber
-		player.PylonFlag = false
+-- Player is passing gate 1, start 
+	local gateSpeedOk = self:CheckGateSpeedForPlayer(player)
 		if gateSpeedOk == false then
 			trigger.action.outSoundForUnit(player.UnitID, 'penalty.ogg')
 			player:StopTimer()
 			player.StatusText = string.format("EXCEEDING START SPEED LIMIT !!! DNF!!!")
 			player.DNF = true
 		end
-		if gateRollOk == false then
-			trigger.action.outSoundForUnit(player.UnitID, 'penalty.ogg')
-			player.Penalty = player.Penalty + 2
-			-- logMessage(string.format("PENALTY: + 2 seconds "))
-		end
-		if gateAltitudeOk == false then
-			trigger.action.outSoundForUnit(player.UnitID, 'penalty.ogg')
-			player.Penalty = player.Penalty + 2
-			-- logMessage(string.format("PENALTY: + 2 seconds "))
-		end
+		player.Penalty = 0
+		player.Bonus = 0
+		trigger.action.outSoundForUnit(player.UnitID, 'pik.ogg')
+		player:StartTimer()
+		player.StatusText = "Started"
+		player.PylonFlag = false
 		return
 	end
 
-	if gateNumber >= player.CurrentGateNumber + 1 then
--- Player passed unexpected gate			
-		if player.CurrentGateNumber == 0 and not player.Finished then
-			-- Player is entering the course half-way
-			player.StatusText = "Wrong start gate, go to gate 1 to start"
-			env.info(string.format("Player %s entered the course half-way", player.Name))
-			return
-		elseif not player.Finished then
-			-- Player has missed a gate or is going the wrong way
-			if gateNumber > player.CurrentGateNumber + 1 then
-				-- Player has missed one or more gates
-				missedGates = gateNumber - (player.CurrentGateNumber + 1)
-				if missedGates == 1 then
-					warnPlayer(string.format("Missed gate %d", player.CurrentGateNumber + 1), player)
-					env.info(string.format("Player %s missed gate %d", player.Name, player.CurrentGateNumber + 1))
-				else
-					warnPlayer(string.format("Missed gates %d to %d", player.CurrentGateNumber + 1, gateNumber - 1), player)
-					env.info(string.format("Player %s missed gates %d to %d", player.Name, player.CurrentGateNumber + 1, gateNumber - 1))
-				end
-				player.Penalty = player.Penalty + (5 * missedGates)
-				player.CurrentGateNumber = gateNumber - 1
-			elseif gateNumber < player.CurrentGateNumber + 1 then
-				-- Player is going the wrong way
-				env.info(string.format("Player %s missed gate %d and is going the wrong way", player.Name, player.CurrentGateNumber + 1))
-				env.info(string.format("gateNumber: %s, player.currentGateNumber: %s", gateNumber, player.CurrentGateNumber))
-				-- player.StatusText = string.format("Wrong way! Last known gate: %d", player.CurrentGateNumber)
-				return
-			end
-		end	
-	end
 -- Player is passing the last gate, stop timer
 	if gateNumber == #self.Course.Gates then
-		local gateAltitudeOk = self:CheckGateAltitudeForPlayer(player)
-		local gateRollOk = self:CheckGateRollForPlayer(player)
-		player.PylonFlag = false
-		if gateRollOk == false then
-			trigger.action.outSoundForUnit(player.UnitID, 'penalty.ogg')
-			player.Penalty = player.Penalty + 2
-			-- logMessage(string.format("PENALTY: + 2 seconds "))
-		end
-		local bonusGateAltitudeOk = self:CheckBonusAltitudeForPlayer(player)
-		for i = 1, #self.BonusGates do
-			if self.BonusGates[i] == gateNumber then
-				if bonusGateAltitudeOk == true then
-					player.Bonus = player.Bonus + 5
-					warnPlayer(string.format("Low Alt Bonus -5 Sec - %s", player.Name), player)
-				end
-			end
-		end
-		if gateAltitudeOk == false then
-			trigger.action.outSoundForUnit(player.UnitID, 'penalty.ogg')
-			player.Penalty = player.Penalty + 2
-			-- logMessage(string.format("PENALTY: + 2 seconds "))
-		end
 		player.PylonFlag = false
 		player:StopTimer()
 		player.StatusText = string.format("Finished. Race time:  %s. Penalty: %s second. Total time: %s ", formatTime(player.TotalTime), player.Penalty, formatTime(player.TotalTime + player.Penalty))
 		env.info(string.format("Player %s finished the course. Race time: %s. Penalty: %s. Total time: %s", player.Name, formatTime(player.TotalTime), player.Penalty, formatTime(player.TotalTime + player.Penalty)))
 		trigger.action.outSoundForUnit(player.UnitID, 'pik.ogg')
-		player.CurrentGateNumber = gateNumber
 		if self.FastestTime == 0 or self.FastestTime > player.TotalTime + player.Penalty then
 			self.FastestTime = player.TotalTime + player.Penalty
 			self.FastestPlayer = player.Name
@@ -592,37 +585,11 @@ function Airrace:UpdatePlayerStatus(player)
 	end
 
 -- Player is passing intermediate gate, set intermediate time
-	local gateAltitudeOk = self:CheckGateAltitudeForPlayer(player)
 	local intermediate = player:GetIntermediateTime()
 	trigger.action.outSoundForUnit(player.UnitID, 'pik.ogg')
 	player.StatusText = string.format("Intermediate: %s", formatTime(intermediate))
 	env.info(string.format("Player %s reached gate %d", player.Name, gateNumber))
-	for i = 1 , #self.HorizontalGates do
-		if self.HorizontalGates[i] == gateNumber then
-			local gateRollOk = self:CheckGateRollForPlayer(player)
-			if gateRollOk == false then
-				trigger.action.outSoundForUnit(player.UnitID, 'penalty.ogg')
-				player.Penalty = player.Penalty + 2
-				-- logMessage(string.format("PENALTY: + 2 seconds "))
-			end
-			break
-		end
-	end
 	player.PylonFlag = false
-	local bonusGateAltitudeOk = self:CheckBonusAltitudeForPlayer(player)
-	for i = 1, #self.BonusGates do
-		if self.BonusGates[i] == gateNumber then
-			if bonusGateAltitudeOk == true then
-				player.Bonus = player.Bonus + 5
-				warnPlayer(string.format("Low Alt Bonus -5 Sec - %s", player.Name), player)
-			end
-		end
-	end
-	if gateAltitudeOk == false then
-		trigger.action.outSoundForUnit(player.UnitID, 'penalty.ogg')
-		player.Penalty = player.Penalty + 2
-		-- logMessage(string.format("PENALTY: + 2 seconds "))
-	end
 	if self.FastestTime ~= 0 then
 		local fastestIntermediate = self.FastestIntermediates[gateNumber - 1]
 		local difference = intermediate - fastestIntermediate
@@ -632,7 +599,6 @@ function Airrace:UpdatePlayerStatus(player)
 		end
 		player.StatusText = string.format("%s (%s%s)", player.StatusText, sign, formatTime(math.abs(difference)))
 	end
-	player.CurrentGateNumber = gateNumber
 end
 -----------------------------------------------------------------------------------------
 -- Display all active players on screen, with their current status
@@ -777,7 +743,7 @@ function Init()
 			course:AddGate(idx)
 		end
 		race = Airrace:New(raceZones, racePylons, course, gateHeight, horizontalGates, startSpeedLimit, bonusGateHeight, bonusGates)
-		mist.scheduleFunction(RaceTimer, { race }, timer.getTime(), 0.3)
+		mist.scheduleFunction(RaceTimer, { race }, timer.getTime(), 0.1)
 		mist.scheduleFunction(NewPlayerTimer, { race }, timer.getTime(), newPlayerCheckInterval)
 		mist.scheduleFunction(RemovePlayerTimer, { race }, timer.getTime(), removePlayerCheckInterval)
 	else
